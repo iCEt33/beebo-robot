@@ -1,0 +1,10 @@
+{
+    "openai_api_key": "",
+    "wake_word": "mango",
+    "word_timeout": 1.0,
+    "ai_mode": "casual",
+    "system_volume": 50,
+    "auto_sleep_timeout": 300,
+    "torch_auto_timeout": 300,
+    "mic_gain": 1.0
+}
