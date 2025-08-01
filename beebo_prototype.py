@@ -74,6 +74,7 @@ class BeeboPrototype:
         # Sound effects
         self.sounds_initialized = False
         self.beep_sound = None
+        self.just_woke_up = False
         
         # Animation system
         self.current_gif = None
@@ -459,12 +460,15 @@ class BeeboPrototype:
                  bg="blue", fg="white", font=("Consolas", 10)).pack(side="left", padx=5)
         
     def create_face_window(self):
-        """Create the face animation window"""
+        """Create the face animation window - borderless and draggable"""
         self.face_window = tk.Toplevel(self.root)
         self.face_window.title("Beebo Face")
         self.face_window.geometry("128x128")
         self.face_window.resizable(False, False)
         self.face_window.configure(bg="black")
+        
+        # Remove window decorations (title bar, buttons, etc.)
+        self.face_window.overrideredirect(True)
         
         # Canvas for animations
         self.face_canvas = tk.Canvas(
@@ -477,10 +481,62 @@ class BeeboPrototype:
         self.face_canvas.pack()
         
         # Keep face window on top
-        self.face_window.attributes('-topmost', True)
+        self.face_window.attributes('-topmost', False)
+        
+        # Add drag functionality
+        self.setup_window_dragging()
         
         # Start animation loop
         self.start_face_animation_loop()
+
+    def setup_window_dragging(self):
+        """Set up click and drag functionality for the face window with edge snapping"""
+        self.drag_data = {"x": 0, "y": 0}
+        
+        # Get screen dimensions for snapping
+        self.screen_width = self.face_window.winfo_screenwidth()
+        self.screen_height = self.face_window.winfo_screenheight()
+        self.window_width = 128
+        self.window_height = 128
+        self.snap_distance = 30  # Distance for snapping to edges
+        
+        def start_drag(event):
+            """Start dragging the window"""
+            self.drag_data["x"] = event.x
+            self.drag_data["y"] = event.y
+        
+        def do_drag(event):
+            """Drag the window"""
+            x = self.face_window.winfo_x() + event.x - self.drag_data["x"]
+            y = self.face_window.winfo_y() + event.y - self.drag_data["y"]
+            self.face_window.geometry(f"+{x}+{y}")
+        
+        def stop_drag(event):
+            """Stop dragging and snap to edges if close enough"""
+            x = self.face_window.winfo_x()
+            y = self.face_window.winfo_y()
+            
+            # Snap to left or right edge
+            if abs(x) < self.snap_distance:  # Snap to left edge
+                x = 0
+            elif abs(self.screen_width - (x + self.window_width)) < self.snap_distance:  # Snap to right edge
+                x = self.screen_width - self.window_width
+            
+            # Snap to top or bottom edge
+            if abs(y) < self.snap_distance:  # Snap to top edge
+                y = 0
+            elif abs(self.screen_height - (y + self.window_height)) < self.snap_distance:  # Snap to bottom edge
+                y = self.screen_height - self.window_height
+            
+            self.face_window.geometry(f"+{x}+{y}")
+        
+        # Bind drag events to both the window and canvas
+        self.face_window.bind("<Button-1>", start_drag)
+        self.face_window.bind("<B1-Motion>", do_drag)
+        self.face_window.bind("<ButtonRelease-1>", stop_drag)
+        self.face_canvas.bind("<Button-1>", start_drag)
+        self.face_canvas.bind("<B1-Motion>", do_drag)
+        self.face_canvas.bind("<ButtonRelease-1>", stop_drag)
         
     def start_face_animation_loop(self):
         """Start the face animation system"""
@@ -995,10 +1051,20 @@ class BeeboPrototype:
             self.last_word_time = time.time()
             self.beep_played = False
             
-            if self.sounds_initialized and self.beep_sound:
-                self.beep_sound.play()
+            if self.just_woke_up:
+                # Just woke up, play wake-up beep
+                if self.sounds_initialized and self.wakeup_beep_sound:
+                    self.wakeup_beep_sound.play()
+                    self.log("🔊 Wake-up beep played - now listening")
+                # Clear the flag immediately after using it
+                self.just_woke_up = False
+            else:
+                # Normal listening from standby or manual, play normal listening beep
+                if self.sounds_initialized and self.beep_sound:
+                    self.beep_sound.play()
+                    self.log("🎤 Listening beep played - now listening")
+
             self.beep_played = True
-            self.log("🎤 Listening for speech...")
             
             while self.current_state == "LISTENING":
                 current_time = time.time()
@@ -1173,6 +1239,9 @@ class BeeboPrototype:
         if self.should_listen_after_wake:
             self.should_listen_after_wake = False
             
+            # Set flag to indicate we just woke up
+            self.just_woke_up = True
+            
             # IMMEDIATE: Set listening state
             self.current_state = "LISTENING"
             self.voice_mode = "listening"
@@ -1194,6 +1263,8 @@ class BeeboPrototype:
         """Stop voice input"""
         if self.current_state in ["LISTENING", "PROCESSING"]:
             self.destroy_vosk_session()
+            # Clear the wake-up flag if listening is stopped manually
+            self.just_woke_up = False
             self.set_state("STANDBY")
 
     # ==================== VOICE INPUT PROCESSING ====================
@@ -1250,7 +1321,7 @@ class BeeboPrototype:
             
             # Get context history
             context_string = self.get_context_string()
-            history_context = f"Previous conversation:\n{context_string}\n" if context_string else ""
+            history_context = f"Previous conversation:\n{context_string}\n"
             
             # Prepare system prompt
             system_prompt = self.get_system_prompt()
@@ -1326,17 +1397,34 @@ class BeeboPrototype:
             # Initialize pygame mixer for sound effects
             pygame.mixer.init(frequency=22050, size=-16, channels=2, buffer=512)
             
-            # Try to load beep sound
+            # Try to load beep sound (existing listening beep)
             beep_path = os.path.join(SCRIPT_DIR, "beep.wav")
             if os.path.exists(beep_path):
                 self.beep_sound = pygame.mixer.Sound(beep_path)
             else:
-                # Create placeholder for beep sound
+                self.beep_sound = None
+            
+            # Try to load wake-up beep sound (NEW)
+            wakeup_beep_path = os.path.join(SCRIPT_DIR, "wakeup_beep.wav")
+            if os.path.exists(wakeup_beep_path):
+                self.wakeup_beep_sound = pygame.mixer.Sound(wakeup_beep_path)
+            else:
+                self.wakeup_beep_sound = None
+                # Create placeholder for wake-up beep sound
+                with open(os.path.join(SCRIPT_DIR, "wakeup_beep_placeholder.txt"), 'w') as f:
+                    f.write("Place your wakeup_beep.wav file in this directory for wake-up notification sound.\n")
+                    f.write("Recommended: Pleasant wake-up sound (0.2-1.0 seconds)\n")
+                    f.write("Format: WAV file, 22050 Hz sample rate\n")
+                    f.write("Examples: Rising tone, gentle chime, robot boot sound\n")
+            
+            # Update existing beep placeholder text
+            if not os.path.exists(beep_path):
                 with open(os.path.join(SCRIPT_DIR, "beep_placeholder.txt"), 'w') as f:
                     f.write("Place your beep.wav file in this directory for listening notification sound.\n")
                     f.write("Recommended: Short beep sound (0.1-0.5 seconds)\n")
                     f.write("Format: WAV file, 22050 Hz sample rate\n")
-                
+                    f.write("Examples: Simple beep, notification sound, attention chime\n")
+            
             self.sounds_initialized = True
             
         except Exception as e:
@@ -1605,10 +1693,10 @@ class BeeboPrototype:
     def apply_volume_color(self, image, volume_level):
         """Apply color transformation based on volume level"""
         try:
-            # Base color: RGB(99, 155, 255) - blue
-            # Peak color: RGB(95, 205, 220) - cyan
-            base_color = (99, 155, 255)
-            peak_color = (95, 205, 220)
+            # Base color: RGB(256, 108, 4) - orange
+            # Peak color: RGB(255, 161, 0) - yellow
+            base_color = (256, 108, 4)
+            peak_color = (255, 161, 0)
             
             # Interpolate between base and peak color
             r = int(base_color[0] + (peak_color[0] - base_color[0]) * volume_level)
@@ -1627,7 +1715,7 @@ class BeeboPrototype:
                     pixel = pixels[x, y]
                     if len(pixel) >= 4 and pixel[3] > 0:  # Not transparent
                         # Replace blue-ish pixels with the target color
-                        if pixel[2] > pixel[0] and pixel[2] > pixel[1]:  # If pixel is blue-ish
+                        if pixel[0] > pixel[1] and pixel[0] > pixel[2]:  # If pixel is orange-ish
                             # Preserve alpha channel
                             pixels[x, y] = (target_color[0], target_color[1], target_color[2], pixel[3])
             
@@ -1642,7 +1730,7 @@ class BeeboPrototype:
     def get_system_prompt(self):
         """Get the base system prompt"""
         system_prompt = (
-            "Your name is B-b0, an AI assistant buddy. "
+            "Your name is Mango, an AI assistant buddy. "
             "Your goal is to answer the current message according to your personality prompt but relevant to the current message. "
             "Only use previous messages if they are directly relevant to the user's current message. "
             "If the user's message does not require prior context, ignore previous conversation and answer based only on the current message. "

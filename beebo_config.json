@@ -6,5 +6,5 @@
     "system_volume": 50,
     "auto_sleep_timeout": 300,
     "torch_auto_timeout": 300,
-    "mic_gain": 1.0
+    "mic_gain": 3.0
 }

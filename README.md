@@ -4,12 +4,13 @@
 
 ## 2-Minute Setup (may vary based on your internet speed)
 
+Project: Mango 🥭
+
 1. **Download**: Clone or download this repo
 2. **Install**: `pip install tkinter pyttsx3 openai pygame pillow vosk pyaudio numpy`
-3. **Get Vosk model**: Download [vosk-model-en-us-0.15](https://alphacephei.com/vosk/models) → extract to `models/vosk-model-en-us-0.15/`
-4. **Run**: `python beebo_prototype.py`
-5. **Add OpenAI key**: Configuration tab → paste API key → Save
-6. **Test**: Say "Mango" → ask questions
+3. **Run**: `python beebo_prototype.py`
+4. **Add OpenAI key**: Configuration tab → paste API key → Save
+5. **Test**: Say "Mango" → ask questions
 
 Done. Working AI robot.
 
@@ -33,9 +34,9 @@ Should just work right away.
 
 ## Troubleshooting
 
-**Can't hear you**: Increase microphone gain in Voice tab
-**No AI response**: Add OpenAI API key in Configuration tab
-**No animations**: Check files are in `animations/` folder
+- **Can't hear you**: Increase microphone gain in Voice tab
+- **No AI response**: Add OpenAI API key in Configuration tab
+- **No animations**: Check files are in `animations/` folder
 
 ## What's Next
 
